@@ -14,10 +14,8 @@ struct Message {
 	char* message;
 };
 
-int flagMode = 0;
-int countMessRecievBuf = 0;
+int mode = 0;
 
-//Определение мьютекса
 pthread_mutex_t mutex;
 
 char* read_msg(int fd) {
@@ -95,39 +93,31 @@ void print_msg(struct Message * m) {
 	free(m);
 }
 
-void* readThread(void* sock){
+void* read_server(void* sock) {
     int socket = *(int *) sock;
-
-    while(1){
+    while (1)
         print_msg(read_sock(socket));
-    }
 }
-void stopClient(int socket){
+void disconnect(int socket, pthread_t *read_t) {
+    pthread_cancel(read_t);
     shutdown(socket,SHUT_RDWR);
     close(socket);
-    pthread_exit(NULL);
     exit(1);
 }
 
 int main(int argc, char *argv[]) {
-
-    int sockfd, n;
+    int sockfd;
     uint16_t portno;
     struct sockaddr_in serv_addr;
     struct hostent *server;
-    //Структуры для изменения режима работы терминала
     struct termios initial_settings, new_settings;
-    //Идентификатор потока
-    pthread_t readThr;
-    char pressButton;
+    pthread_t read_t;
+    char key;
 
     int nick_length = strlen(argv[3]);
     char* nickname = malloc(nick_length * sizeof(char));
     strcpy(nickname, argv[3]);
-
-    //Инициализация мьютекса
     pthread_mutex_init(&mutex,NULL);
-    //Начальное состояние консоли
     tcgetattr(fileno(stdin), &initial_settings);
 
     if (argc < 4) {
@@ -135,19 +125,16 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
-    //Инициализция номера порта
     portno = (uint16_t) atoi(argv[2]);
-    /*Создание сокета*/
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
     if (sockfd < 0) {
-        perror("Ошибка при открытии сокета");
-        stopClient(sockfd);
+        perror("ERROR while opening socket");
+        disconnect(sockfd, &read_t);
     }
 
-    //Инициализируем соединение с сервером
     server = gethostbyname(argv[1]);
 
-    //Проверяем что хост существует и корректный
     if (server == NULL) {
         fprintf(stderr, "ERROR, no such host\n");
         exit(0);
@@ -158,48 +145,36 @@ int main(int argc, char *argv[]) {
     bcopy(server->h_addr, (char *) &serv_addr.sin_addr.s_addr, (size_t) server->h_length);
     serv_addr.sin_port = htons(portno);
 
-
-    /* Подключаемся к серверу */
     if (connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
         perror("ERROR connecting");
-        stopClient(sockfd);
+        disconnect(sockfd, read_t);
     }
 
-    //Создаем поток на чтение данных с сервера
-    if(pthread_create(&readThr, NULL, readThread, &sockfd) < 0 ){
+    if (pthread_create(&read_t, NULL, read_server, &sockfd) < 0) {
         printf("ERROR");
         exit(1);
     }
 
-    //Отправка сообщений другим клиентам
-    while(1){
-        //Если флаг в 1 то вывод заблокирован если флаг в 0 вывод разрешен
-        /*if(!flagMode){
-
+    while (1) {
+        if (!mode) {
             new_settings = initial_settings;
             new_settings.c_lflag &= ~ICANON;
             new_settings.c_lflag &= ~ECHO;
             new_settings.c_cc[VMIN] = 0;
             new_settings.c_cc[VTIME] = 0;
             tcsetattr(fileno(stdin), TCSANOW, &new_settings);
-            //Ожидаем нажатие клавиши
-            read(0, &pressButton, 1);
+            read(0, &key, 1);
 
-            //Проверка нажатой клавиши
-            if(pressButton == 'm'){
-                flagMode = 1;
-            }
+            if (key == 'm')
+                mode = 1;
 
-            //Обрабатываем событие на выход клиент
-            if(pressButton == 'q'){
+            if (key == 'q') {
                 tcsetattr(fileno(stdin), TCSANOW, &initial_settings);
-                stopClient(sockfd);
+                disconnect(sockfd, &read_t);
             }
-
         }
-        else{*/
-            //Восстанавливаем исходный терминал
-            //tcsetattr(fileno(stdin), TCSANOW, &initial_settings);
+        else {
+            tcsetattr(fileno(stdin), TCSANOW, &initial_settings);
 
             char* message = read_msg(STDIN_FILENO);
             int message_length = strlen(message);
@@ -210,10 +185,9 @@ int main(int argc, char *argv[]) {
             if (message_length > 1)
                 write(sockfd, to, message_length + nick_length + 7);
 
-            pressButton = 0;
-            flagMode = 0;
-
-        //}
+            key = 0;
+            mode = 0;
+        }
     }
 
     return 0;
