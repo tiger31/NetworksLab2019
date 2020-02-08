@@ -29,7 +29,7 @@ char* read_msg(int fd) {
 	} while(tmp != '\n' && tmp != '\0');
 	message = realloc(message, curr * sizeof(char));
 	printf("\033[1A\033[K");
-	fflush(stdout);
+    fflush(stdout);
 	return message;
 }
 
