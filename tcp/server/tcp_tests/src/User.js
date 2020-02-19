@@ -64,16 +64,16 @@ module.exports = class User extends EventEmitter {
 	answer(params, check = true) {
 		if (check)
 			console.log(`action=answer, ${this.username} answered with ${params.answer}`);
-		if (check && !params.answer) {
+		if (check && (params.answer === undefined || !this._current)) {
 			this.constructor.closeSocketWith(new errors.NotEnoughParams('answer'), this.socket)
 		} else {
 			if (check) {
-				if (this._current.test.questions[this._current.current].answers.length > params.id) {
+				if (this._current.test.questions[this._current.current - 1].answers.length > params.id) {
 					this.constructor.closeSocketWith(new errors.CustomError('Answer not found by id'), this.socket);
 					return;
 				}
+				this._current.answer(params.answer);
 			}
-			this._current.answer(params.answer);
 			const question = this._current.question();
 			let result = null;
 			if (!question) {

@@ -14,7 +14,7 @@ module.exports = class TestResult {
 			return null;
 		else {
 			const q = this.test.questions[this.current++];
-			return q.reply;
+			return (q) ? q.reply : null;
 		}
 	}
 
@@ -24,9 +24,9 @@ module.exports = class TestResult {
 
 	get ratio() {
 		return this.test.questions.reduce((v, q, i) => {
-			if (q.answers.findIndex(a => a.correct) === this.answers[i])
-				v++;
-		}, 0)
+			const index = q.answers.findIndex(a => a.correct);
+			return (index === this.answers[i]) ? v + 1 : v;
+		}, 0) / this.test.questions.length;
 	}
 
 };
