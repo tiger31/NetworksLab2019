@@ -63,9 +63,9 @@ module.exports = class User extends EventEmitter {
 
 	answer(params, check = true) {
 		if (check)
-			console.log(`action=answer, ${this.username} answered test ${params.id}`);
+			console.log(`action=answer, ${this.username} answered with ${params.answer}`);
 		if (check && !params.answer) {
-			this.constructor.closeSocketWith(new errors.NotEnoughParams('answer', 'id'), this.socket)
+			this.constructor.closeSocketWith(new errors.NotEnoughParams('answer'), this.socket)
 		} else {
 			if (check) {
 				if (this._current.test.questions[this._current.current].answers.length > params.id) {
@@ -73,6 +73,7 @@ module.exports = class User extends EventEmitter {
 					return;
 				}
 			}
+			this._current.answer(params.answer);
 			const question = this._current.question();
 			let result = null;
 			if (!question) {
